@@ -1,51 +1,41 @@
-import React, { useEffect, useState } from "react";
+import React from "react";
 import { createRoot } from "react-dom/client";
 
 const Popup = () => {
-  const [count, setCount] = useState(0);
-  const [currentURL, setCurrentURL] = useState<string>();
+  const style = { minWidth: 300 };
 
-  useEffect(() => {
-    chrome.action.setBadgeText({ text: count.toString() });
-  }, [count]);
+  async function getUserClicks() {
+    let userClicks = await chrome.storage.local
+      .get({ userClicks: [] })
+      .then((data) => data.userClicks);
 
-  useEffect(() => {
-    chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
-      setCurrentURL(tabs[0].url);
-    });
-  }, []);
+    console.log("userClicks:");
+    console.log(userClicks);
+  }
 
-  const changeBackground = () => {
-    chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
-      const tab = tabs[0];
-      if (tab.id) {
-        chrome.tabs.sendMessage(
-          tab.id,
-          {
-            color: "#555555",
-          },
-          (msg) => {
-            console.log("result message:", msg);
-          }
-        );
-      }
-    });
-  };
+  async function getUserID() {
+    let userID = await chrome.storage.local
+      .get("userID")
+      .then((data) => data.userID);
+
+    console.log("userID:");
+    console.log(userID);
+  }
+
+  async function clearData() {
+    await chrome.storage.local.clear();
+    console.log("cleared extension's local storage");
+  }
 
   return (
-    <>
-      <ul style={{ minWidth: "700px" }}>
-        <li>Current URL: {currentURL}</li>
-        <li>Current Time: {new Date().toLocaleTimeString()}</li>
-      </ul>
-      <button
-        onClick={() => setCount(count + 1)}
-        style={{ marginRight: "5px" }}
-      >
-        count up
-      </button>
-      <button onClick={changeBackground}>change background</button>
-    </>
+    <div style={style}>
+      <h1>E-commerce User Behavior Collection Extension</h1>
+      <div>Look around Shopee and Lazada, and come back here!</div>
+
+      <button onClick={getUserClicks}>Check User Clicks</button>
+      <button onClick={getUserID}>Check UserID</button>
+      <button onClick={clearData}>Clear Data</button>
+    </div>
   );
 };
 
