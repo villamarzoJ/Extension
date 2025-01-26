@@ -1,7 +1,7 @@
 type UserClick = {
   platform: PlatformEnum;
 
-  eventTime: Date;
+  eventTime: string;
   eventType: EventEnum;
   categoryCode?: string;
   categoryId?: string;

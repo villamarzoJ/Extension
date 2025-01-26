@@ -1,16 +1,18 @@
-import React from "react";
+import React, { useState } from "react";
 import { createRoot } from "react-dom/client";
 
 const Popup = () => {
   const style = { minWidth: 300 };
+  const [userClickData, setUserClickData] = useState("");
 
   async function getUserClicks() {
     let userClicks = await chrome.storage.local
       .get({ userClicks: [] })
       .then((data) => data.userClicks);
 
-    console.log("userClicks:");
-    console.log(userClicks);
+    console.log({ userClicks });
+    const data = JSON.stringify(userClicks);
+    setUserClickData(Buffer.from(data).toString("base64"));
   }
 
   async function getUserID() {
@@ -32,9 +34,16 @@ const Popup = () => {
       <h1>E-commerce User Behavior Collection Extension</h1>
       <div>Look around Shopee and Lazada, and come back here!</div>
 
-      <button onClick={getUserClicks}>Check User Clicks</button>
+      <button onClick={getUserClicks}>Get User Clicks</button>
       <button onClick={getUserID}>Check UserID</button>
       <button onClick={clearData}>Clear Data</button>
+
+      {userClickData.length !== 0 && (
+        <div>
+          <span> User Clickstream Data: </span>
+          <input type="text" readOnly value={userClickData} />
+        </div>
+      )}
     </div>
   );
 };

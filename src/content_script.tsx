@@ -39,12 +39,12 @@ async function lazadaAddClickEvent(userID: string) {
   console.log(viewTime);
 
   let productPrice = null;
-  for (let attempts = 0; attempts < 3; attempts++) {
+  for (let attempts = 0; attempts < 2 * 5; attempts++) {
     productPrice = await getProductPagePrice();
 
     if (productPrice == null) {
       console.log("price refresh?");
-      await wait(2 * 1000);
+      await wait(0.5 * 1000);
       continue;
     }
 
@@ -57,7 +57,7 @@ async function lazadaAddClickEvent(userID: string) {
 
   let userClick: UserClick = {
     platform: "lazada",
-    eventTime: viewTime,
+    eventTime: viewTime.toString(),
     eventType: "view",
     price: productPrice,
     userId: userID as UserID,
@@ -72,7 +72,7 @@ async function lazadaAddClickEvent(userID: string) {
 async function addCartPageListeners(userID: UserID) {
   let cartItems = null;
 
-  for (let attempts = 0; attempts < 3; attempts++) {
+  for (let attempts = 0; attempts < 2 * 5; attempts++) {
     cartItems = document.querySelectorAll(
       `.checkout-shop-children .cart-item-inner`
     );
@@ -82,7 +82,7 @@ async function addCartPageListeners(userID: UserID) {
     }
 
     console.log("retrying to get cart elements...");
-    await wait(2 * 1000);
+    await wait(0.5 * 1000);
   }
 
   if (!cartItems || cartItems?.length == 0) {
@@ -117,7 +117,7 @@ async function addCartPageListeners(userID: UserID) {
 
         let userClick: UserClick = {
           platform: "lazada",
-          eventTime: cartRemoveTime,
+          eventTime: cartRemoveTime.toString(),
           eventType: "remove_from_cart",
           price: productPrice,
           userId: userID as UserID,
@@ -163,7 +163,7 @@ async function addProductPageListeners(userID: string, productPrice: Price) {
 
       let userClick: UserClick = {
         platform: "lazada",
-        eventTime: cartAddTime,
+        eventTime: cartAddTime.toString(),
         eventType: "cart",
         price: productPrice,
         userId: userID as UserID,
@@ -201,8 +201,8 @@ async function addCheckoutPageListeners(userID: string) {
       for (const productPrice of prices) {
         let userClick: UserClick = {
           platform: "lazada",
-          eventTime: purchaseTime,
-          eventType: "cart",
+          eventTime: purchaseTime.toString(),
+          eventType: "purchase", // should be tested
           price: productPrice,
           userId: userID as UserID,
         };
@@ -212,6 +212,215 @@ async function addCheckoutPageListeners(userID: string) {
       }
     });
   }
+}
+
+async function addShopeeCartListener(userID: string) {
+  let productItems = null;
+  for (let i = 0; i < 2 * 5; i++) {
+    productItems = document.querySelectorAll(
+      `.container section section [role="listitem"]`
+    );
+    if (productItems.length !== 0) {
+      break;
+    }
+
+    await wait(0.5 * 1000);
+  }
+  if (!productItems || productItems.length == 0) {
+    return;
+  }
+
+  for (const product of productItems) {
+    const priceElement = product.querySelector(
+      `div > :nth-child(4) > :first-child > :last-child`
+    );
+    console.log(priceElement);
+    const priceText = priceElement?.textContent;
+
+    if (!priceText) {
+      continue;
+    }
+    const productPrice = transformPriceText(priceText);
+
+    const productBtns = product.querySelectorAll(
+      `div > div > div:last-child > button`
+    );
+    let deleteButton = null;
+    for (const button of productBtns) {
+      if (button.textContent?.match(/delete/i)) {
+        deleteButton = button;
+      }
+    }
+
+    deleteButton!.addEventListener("click", async () => {
+      let deletionTime = new Date();
+
+      let userClick: UserClick = {
+        platform: "shopee",
+        eventTime: deletionTime.toString(),
+        eventType: "remove_from_cart",
+        price: productPrice,
+        userId: userID as UserID,
+      };
+
+      console.log("add remove from cart event");
+      await addUserClick(userClick);
+    });
+  }
+}
+
+async function shopeeGetProductPagePrice() {
+  const priceElement = document.querySelector(
+    `section[aria-live="polite"] > div > div`
+  );
+
+  if (!priceElement) {
+    return;
+  }
+
+  const priceText = priceElement?.textContent!;
+  const currencyResult = transformPriceText(priceText);
+
+  return currencyResult;
+}
+
+async function shopeeAddClickEvent(userID: string) {
+  let viewTime = new Date();
+  chrome.storage.local.set({ viewTime: viewTime });
+  console.log(viewTime);
+
+  let productPrice = null;
+  for (let attempts = 0; attempts < 2 * 5; attempts++) {
+    productPrice = await shopeeGetProductPagePrice();
+
+    if (productPrice == null) {
+      console.log("price refresh?");
+      await wait(0.5 * 1000);
+      continue;
+    }
+
+    break;
+  }
+
+  if (productPrice == null) {
+    return null;
+  }
+
+  let userClick: UserClick = {
+    platform: "shopee",
+    eventTime: viewTime.toString(),
+    eventType: "view",
+    price: productPrice,
+    userId: userID as UserID,
+  };
+
+  await addUserClick(userClick);
+  console.log("added view product event");
+
+  return productPrice;
+}
+
+async function shopeeAddProductPageListener(
+  userID: string,
+  productPrice: Price
+) {
+  const cartButton = document.querySelector(
+    `.page-product section.flex-auto > div > div:last-of-type button:first-of-type`
+  );
+  if (!cartButton) {
+    return;
+  }
+
+  let isProcessRunning = false;
+
+  cartButton.addEventListener("click", async () => {
+    if (isProcessRunning) {
+      return;
+    }
+    isProcessRunning = true;
+
+    let toastNotification = null;
+    for (let i = 0; i < 2 * 5; i++) {
+      toastNotification = document.querySelectorAll(`.toast__text`);
+      if (toastNotification.length !== 0) {
+        break;
+      }
+
+      await wait(0.5 * 1000);
+      console.log("waiting for add to cart notification...");
+    }
+
+    if (!toastNotification || toastNotification.length !== 1) {
+      console.log("add to cart unsuccessful...");
+      return;
+    }
+
+    const viewTime = new Date();
+    chrome.storage.local.set({ viewTime: viewTime });
+
+    let userClick: UserClick = {
+      platform: "shopee",
+      eventTime: viewTime.toString(),
+      eventType: "cart",
+      price: productPrice,
+      userId: userID as UserID,
+    };
+
+    await addUserClick(userClick);
+    console.log("added add to cart event");
+
+    isProcessRunning = false;
+  });
+}
+
+async function shopeeAddCheckoutListener(userID: string) {
+  const orderedRows = document.querySelectorAll(
+    `div[role="main"] > div:first-child > div:last-child > div > div > div > div`
+  );
+
+  const prices: Price[] = [];
+  for (const row of orderedRows) {
+    const fiveColumns = row.querySelector(`div > div:nth-child(5)`);
+    const sixColumns = row.querySelector(`div > div:nth-child(6)`);
+    const hasPictureElement = row.querySelector(`picture`);
+
+    if (fiveColumns && !sixColumns && hasPictureElement) {
+      const priceText = row.querySelector(`div:nth-child(3)`)?.textContent;
+      if (!priceText) {
+        continue;
+      }
+
+      prices.push(transformPriceText(priceText));
+    }
+  }
+
+  const checkoutBtnCandidates = document.querySelectorAll(
+    `div[role="main"] > div:last-child button`
+  );
+
+  let checkoutButton = null;
+  for (const button of checkoutBtnCandidates) {
+    if (button.textContent?.match(/order/i)) {
+      checkoutButton = button;
+    }
+  }
+
+  checkoutButton?.addEventListener("click", async () => {
+    let purchaseTime = new Date();
+
+    for (const productPrice of prices) {
+      let userClick: UserClick = {
+        platform: "shopee",
+        eventTime: purchaseTime.toString(),
+        eventType: "purchase", // should be tested
+        price: productPrice,
+        userId: userID as UserID,
+      };
+
+      console.log("add purchase event");
+      await addUserClick(userClick);
+    }
+  });
 }
 
 async function contentScriptRun() {
@@ -259,13 +468,74 @@ async function contentScriptRun() {
   }
 
   if (currentPlatform === "shopee") {
-    // TODO
-    return;
+    const checkoutPage = /^https:\/\/shopee.ph\/checkout/;
+    const cartPage = /^https:\/\/shopee.ph\/cart/;
+
+    if (tabURL.match(cartPage)) {
+      console.log("on cart page");
+      addShopeeCartListener(userID);
+      return;
+    }
+
+    let mainElement = null;
+    for (let attempts = 0; attempts < 2 * 15; attempts++) {
+      mainElement = document.querySelector(`#main`);
+      if (mainElement) {
+        break;
+      }
+
+      console.log("retrying to find main...");
+      await wait(0.5 * 1000);
+    }
+
+    if (!mainElement) {
+      console.error("main element took too long to load!");
+      return;
+    }
+
+    if (tabURL.match(checkoutPage)) {
+      console.log("on checkout page");
+      await shopeeAddCheckoutListener(userID);
+      return;
+    }
+
+    let pageProduct = null;
+    for (let attempts = 0; attempts < 2 * 5; attempts++) {
+      pageProduct = document.querySelector(`.page-product`);
+      if (pageProduct) {
+        break;
+      }
+
+      await wait(0.5 * 1000);
+    }
+
+    if (pageProduct) {
+      const price = await shopeeAddClickEvent(userID);
+      if (!price) {
+        return;
+      }
+
+      shopeeAddProductPageListener(userID, price);
+      return;
+    }
+  }
+}
+
+let currentURL: string;
+
+async function contentScriptWrapper() {
+  while (true) {
+    if (!currentURL || currentURL !== document.URL) {
+      currentURL = document.URL;
+      contentScriptRun();
+    }
+
+    await wait(1 * 1000);
   }
 }
 
 if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", contentScriptRun);
+  document.addEventListener("DOMContentLoaded", contentScriptWrapper);
 } else {
-  contentScriptRun();
+  contentScriptWrapper();
 }
